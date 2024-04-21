@@ -35,11 +35,23 @@ impl<'a, F: PrimeField + Ord> LookupTraceBuilder<'a, F> {
 
   // TODO: add documentation
   fn read(&mut self, addr: F) -> F {
-    // first try to read from cache, if you cannot then read from lookup table
     let (read_value, read_ts, _, write_ts) = self.lookup_table.rw_operation(addr, None);
     self
-        .trace
-        .push(RWTrace::Read(addr, read_value, read_ts, write_ts));
+      .trace
+      .push(RWTrace::Read(addr, read_value, read_ts, write_ts));
     read_value
+  }
+
+  // TODO: add documentation
+  fn write(&mut self, addr: F, value: F) {
+    let (read_value, read_ts, write_value, write_ts) =
+      self.lookup_table.rw_operation(addr, Some(value));
+    self.trace.push(RWTrace::Write(
+      addr,
+      read_value,
+      write_value,
+      read_ts,
+      write_ts,
+    ));
   }
 }
