@@ -63,10 +63,10 @@ impl<F: PrimeField + Ord> LookupTable<F> {
 
 #[cfg(test)]
 mod tests {
-  use crate::gadgets::lookup::{LookupTable, TableType};
   use crate::provider::PallasEngine;
   use crate::Engine;
   use ff::Field;
+  use crate::gadgets::lookup::lookup_table::{LookupTable, TableType};
 
   type F = <PallasEngine as Engine>::Scalar;
 
