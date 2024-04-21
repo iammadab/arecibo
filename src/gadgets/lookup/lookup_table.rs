@@ -18,7 +18,7 @@ pub struct LookupTable<F: PrimeField> {
 
 impl<F: PrimeField + Ord> LookupTable<F> {
   /// Create a new `LookupTable` setting initial values and read write permissions
-  fn new(initial_table: Vec<(F, F)>, table_type: TableType) -> Self {
+  pub fn new(initial_table: Vec<(F, F)>, table_type: TableType) -> Self {
     let table_map = initial_table
       .into_iter()
       .enumerate()
@@ -39,7 +39,8 @@ impl<F: PrimeField + Ord> LookupTable<F> {
 
   /// When value is set to None, performs a read operation
   /// When value is set to Some, performs a write operation
-  fn rw_operation(&mut self, addr: F, value: Option<F>) -> (F, F, F, F) {
+  /// Returns (read_value, read_ts, write_value, write_ts)
+  pub fn rw_operation(&mut self, addr: F, value: Option<F>) -> (F, F, F, F) {
     // assumes every field element is in the addressable memory space
     let (read_value, read_ts) = self.table.get(&addr).cloned().unwrap_or((F::ZERO, F::ZERO));
 
@@ -63,10 +64,10 @@ impl<F: PrimeField + Ord> LookupTable<F> {
 
 #[cfg(test)]
 mod tests {
+  use crate::gadgets::lookup::lookup_table::{LookupTable, TableType};
   use crate::provider::PallasEngine;
   use crate::Engine;
   use ff::Field;
-  use crate::gadgets::lookup::lookup_table::{LookupTable, TableType};
 
   type F = <PallasEngine as Engine>::Scalar;
 
