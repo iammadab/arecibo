@@ -10,7 +10,7 @@ enum TableType {
 }
 
 /// ReadOnly or ReadWrite mapping from address to value
-struct LookupTable<F: PrimeField> {
+pub struct LookupTable<F: PrimeField> {
   table: BTreeMap<F, (F, F)>,
   global_ts: F,
   table_type: TableType,

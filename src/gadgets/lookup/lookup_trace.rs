@@ -6,3 +6,8 @@ pub enum RWTrace<F>{
     // addr, read_value, write_value, read_ts, write_ts
     Write(F, F, F, F, F)
 }
+
+// TODO: add documentation
+pub struct LookupTrace<F> {
+    trace: Vec<RWTrace<F>>
+}
