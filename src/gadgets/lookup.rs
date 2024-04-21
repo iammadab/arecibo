@@ -33,8 +33,7 @@ impl<F: PrimeField + Ord> LookupTable<F> {
       .into_iter()
       .enumerate()
       .map(|(expected_addr, (addr, value))| {
-        // assert that initial table represents values at contiguous strictly increasing values with
-        // addr_0 = 0
+        // assert that initial table addresses are contiguous and strictly increasing, starting at 0
         assert!(F::from(expected_addr as u64) == addr);
         (addr, (value, F::ZERO))
       })
@@ -91,7 +90,7 @@ mod tests {
 
   #[test]
   fn test_read_only_lookup_table_operations() {
-    // initialize the table
+    // initialize read only lookup table
     let initial_table = vec![
       (F::ZERO, F::from(2)),
       (F::ONE, F::from(4)),
@@ -138,6 +137,50 @@ mod tests {
     assert_eq!(
       lookup_table.table.get(&F::ONE),
       Some(&(F::from(4), F::from(2)))
+    );
+  }
+
+  #[test]
+  fn test_read_write_lookup_table_operations() {
+    // initialize read write lookup table
+    let initial_table = vec![
+      (F::ZERO, F::from(2)),
+      (F::ONE, F::from(4)),
+      (F::from(2), F::from(6)),
+    ];
+    let mut lookup_table = LookupTable::new(initial_table, TableType::ReadWrite);
+
+    // series of read / write operations to ensure
+    // global_ts is used correctly
+
+    // read addr 1
+    let rw_operation_result = lookup_table.rw_operation(F::ONE, None);
+    assert_eq!(
+      rw_operation_result,
+      (F::from(4), F::ZERO, F::from(4), F::ONE)
+    );
+    assert_eq!(lookup_table.table.get(&F::ONE), Some(&(F::from(4), F::ONE)));
+
+    // write addr 2
+    let rw_operation_result = lookup_table.rw_operation(F::from(2), Some(F::from(46)));
+    assert_eq!(
+      rw_operation_result,
+      (F::from(6), F::ZERO, F::from(46), F::from(2))
+    );
+    assert_eq!(
+      lookup_table.table.get(&F::from(2)),
+      Some(&(F::from(46), F::from(2)))
+    );
+
+    // read addr 0
+    let rw_operation_circuit = lookup_table.rw_operation(F::from(0), None);
+    assert_eq!(
+      rw_operation_circuit,
+      (F::from(2), F::ZERO, F::from(2), F::from(3))
+    );
+    assert_eq!(
+      lookup_table.table.get(&F::ZERO),
+      Some(&(F::from(2), F::from(3)))
     );
   }
 }
