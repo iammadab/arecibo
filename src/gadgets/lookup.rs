@@ -1,39 +1,30 @@
 // TODO: move pieces into separate files
-
-// TODO:
-//  create lookup table / memory
-//  test this
-//  add max_cap_for_global_ts (think about this)
-//  test this
-
 use ff::PrimeField;
 use std::collections::BTreeMap;
 
-// TODO: best way I have seen for ordering is, introduce first use later
-
-// TODO: add documentation
+/// Specifies read write permissions for the `LookupTable`
 #[derive(PartialEq)]
 enum TableType {
   ReadOnly,
   ReadWrite,
 }
 
-// TODO: add documentation
+/// ReadOnly or ReadWrite mapping from address to value
 struct LookupTable<F: PrimeField> {
   table: BTreeMap<F, (F, F)>,
   global_ts: F,
-  table_type: TableType, // TODO: add and use the max_cap_for_global_ts
+  table_type: TableType,
 }
 
 impl<F: PrimeField + Ord> LookupTable<F> {
-  // TODO: add documentation
+  /// Create a new `LookupTable` setting initial values and read write permissions
   fn new(initial_table: Vec<(F, F)>, table_type: TableType) -> Self {
-    // TODO: this constrains the address of the table, do we want this?
     let table_map = initial_table
       .into_iter()
       .enumerate()
       .map(|(expected_addr, (addr, value))| {
-        // assert that initial table addresses are contiguous and strictly increasing, starting at 0
+        // assert that initial table addresses
+        // are contiguous and strictly increasing, starting at 0
         assert!(F::from(expected_addr as u64) == addr);
         (addr, (value, F::ZERO))
       })
@@ -46,12 +37,10 @@ impl<F: PrimeField + Ord> LookupTable<F> {
     }
   }
 
-  // TODO(refactor): use a better output signature
+  /// When value is set to None, performs a read operation
+  /// When value is set to Some, performs a write operation
   fn rw_operation(&mut self, addr: F, value: Option<F>) -> (F, F, F, F) {
-    // TODO:
-    //  assumes every field element represents an addressable memory location
-    //  how do you deal with things like range checks?? need to look into unindexed lookups
-    //  is this logic valid?
+    // assumes every field element is in the addressable memory space
     let (read_value, read_ts) = self.table.get(&addr).cloned().unwrap_or((F::ZERO, F::ZERO));
 
     let (write_value, write_ts) = if self.table_type == TableType::ReadOnly {
