@@ -11,6 +11,8 @@
 #![allow(non_snake_case)]
 // #![forbid(unsafe_code)] // Commented for development with `Abomonation`
 
+extern crate core;
+
 // private modules
 mod bellpepper;
 mod circuit;
