@@ -2,16 +2,6 @@ use crate::CurveCycleEquipped;
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 
-// operations
-// read
-// write
-// commit
-// rw_operation
-
-// I think it's possible to do read and write inside of commit (with the use of some helper function)
-// as I don't think it makes sense to call read / write twice with the exact same values.
-// I need read write, it intuitively makes sense to have that.
-
 #[derive(Clone, Debug, PartialEq)]
 /// Represents a Read / Write operation.
 /// Contains all information needed to prove table / memory consistency
@@ -129,7 +119,7 @@ impl<E: CurveCycleEquipped> LookupTrace<E> {
         allocated_value == expected_write_value,
         "write value {:?} mismatch with expected {:?}",
         allocated_value,
-        expected_value
+        expected_write_value
       )
     }
 
@@ -149,7 +139,7 @@ impl<E: CurveCycleEquipped> LookupTrace<E> {
     ));
     self.cursor += 1;
 
-    Ok()
+    Ok(())
   }
 
   /// Return a reference to the internal trace vector
