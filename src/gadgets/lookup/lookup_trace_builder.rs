@@ -84,3 +84,77 @@ where
 
   // TODO: implement get_challenges
 }
+
+#[cfg(test)]
+mod tests {
+  use crate::gadgets::lookup::lookup_table::{LookupTable, TableType};
+  use crate::gadgets::lookup::lookup_trace::{LookupTrace, RWTrace};
+  use crate::gadgets::lookup::lookup_trace_builder::LookupTraceBuilder;
+  use crate::provider::poseidon::PoseidonConstantsCircuit;
+  use crate::provider::PallasEngine;
+  use crate::{Dual, Engine, ROTrait};
+  use ff::Field;
+
+  type F = <PallasEngine as Engine>::Scalar;
+
+  #[test]
+  fn test_lookup_builder_rw_operations() {
+    // table = []
+    // global_ts = 0
+
+    // write addr=0 val=15
+    // table = [Write(0, 0, 0, 15, 1)]
+    // global_ts = 1
+
+    // read addr=0
+    // table = [Write(0, 0, 0, 15, 1), Read(0, 15, 1, 15, 2)]
+    // global_ts = 2
+
+    // write addr=1 val=12
+    // table = [Write(0, 0, 0, 15, 1), Read(0, 15, 1, 2), Write(1, 0, 0, 12, 3)]
+    // global_ts = 3
+
+    // read addr=1
+    // table = [Write(0, 0, 0, 15, 1), Read(0, 15, 1, 2), Write(1, 0, 0, 12, 3), Read(1, 12, 3, 4)]
+    // global_ts = 4
+
+    // write addr=0 val=6
+    // table = [Write(0, 0, 0, 15, 1), Read(0, 15, 1, 2), Write(1, 0, 0, 12, 3), Read(1, 12, 3, 4), Write(0, 15, 2, 6, 5)]
+    // global_ts = 5
+
+    let expected_final_trace = vec![
+      RWTrace::Write(F::ZERO, F::ZERO, F::ZERO, F::from(15), F::ONE),
+      RWTrace::Read(F::ZERO, F::from(15), F::ONE, F::from(2)),
+      RWTrace::Write(F::ONE, F::ZERO, F::ZERO, F::from(12), F::from(3)),
+      RWTrace::Read(F::ONE, F::from(12), F::from(3), F::from(4)),
+      RWTrace::Write(F::ZERO, F::from(15), F::from(2), F::from(6), F::from(5)),
+    ];
+
+    let mut lookup_table = LookupTable::new(vec![], TableType::ReadWrite);
+    let mut lookup_trace_builder = LookupTraceBuilder::<PallasEngine>::new(&mut lookup_table);
+
+    // perform read write operations on the builder
+    // write addr=0 val=15
+    lookup_trace_builder.write(F::ZERO, F::from(15));
+
+    // read addr=0
+    let read_value = lookup_trace_builder.read(F::ZERO);
+    assert_eq!(read_value, F::from(15));
+
+    // write addr=1 val=12
+    lookup_trace_builder.write(F::ONE, F::from(12));
+
+    // read addr=1
+    let read_value = lookup_trace_builder.read(F::ONE);
+    assert_eq!(read_value, F::from(12));
+
+    // write addr=0 val=6
+    lookup_trace_builder.write(F::ZERO, F::from(6));
+
+    let (_, lookup_trace) =
+      lookup_trace_builder.snapshot(PoseidonConstantsCircuit::default(), F::ONE);
+
+    // assert that lookup trace matches the expected lookup trace
+    assert_eq!(lookup_trace, LookupTrace::new(expected_final_trace));
+  }
+}

@@ -1,10 +1,9 @@
-// TODO: move pieces into separate files
 use ff::PrimeField;
 use std::collections::BTreeMap;
 
 /// Specifies read write permissions for the `LookupTable`
 #[derive(PartialEq)]
-enum TableType {
+pub enum TableType {
   ReadOnly,
   ReadWrite,
 }

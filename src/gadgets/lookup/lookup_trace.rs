@@ -1,5 +1,6 @@
 use crate::CurveCycleEquipped;
 
+#[derive(Debug, PartialEq)]
 /// Represents a Read / Write operation.
 /// Contains all information needed to prove table / memory consistency
 pub enum RWTrace<F> {
@@ -10,6 +11,7 @@ pub enum RWTrace<F> {
 }
 
 // TODO: add documentation
+#[derive(Debug, PartialEq)]
 pub struct LookupTrace<E: CurveCycleEquipped> {
   trace: Vec<RWTrace<E::Scalar>>,
 }
