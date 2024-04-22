@@ -1,6 +1,7 @@
 use crate::CurveCycleEquipped;
+use bellpepper_core::num::AllocatedNum;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 /// Represents a Read / Write operation.
 /// Contains all information needed to prove table / memory consistency
 pub enum RWTrace<F> {
@@ -11,14 +12,22 @@ pub enum RWTrace<F> {
 }
 
 // TODO: add documentation
-#[derive(Debug, PartialEq)]
 pub struct LookupTrace<E: CurveCycleEquipped> {
   trace: Vec<RWTrace<E::Scalar>>,
+  allocated_trace: Vec<RWTrace<AllocatedNum<E::Scalar>>>,
 }
 
 impl<E: CurveCycleEquipped> LookupTrace<E> {
   // TODO: add documentation
   pub fn new(trace: Vec<RWTrace<E::Scalar>>) -> Self {
-    Self { trace }
+    Self {
+      trace,
+      allocated_trace: vec![],
+    }
+  }
+
+  // TODO: add documentation
+  pub fn trace(&self) -> &[RWTrace<E::Scalar>] {
+    self.trace.as_ref()
   }
 }

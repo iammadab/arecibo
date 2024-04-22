@@ -155,6 +155,6 @@ mod tests {
       lookup_trace_builder.snapshot(PoseidonConstantsCircuit::default(), F::ONE);
 
     // assert that lookup trace matches the expected lookup trace
-    assert_eq!(lookup_trace, LookupTrace::new(expected_final_trace));
+    assert_eq!(lookup_trace.trace(), expected_final_trace);
   }
 }
