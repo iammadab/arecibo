@@ -1,9 +1,12 @@
 use crate::constants::NUM_CHALLENGE_BITS;
 use crate::gadgets::le_bits_to_num;
+use crate::gadgets::lookup::lookup_table::TableType;
+use crate::gadgets::utils::conditionally_select2;
 use crate::traits::ROCircuitTrait;
 use crate::{CurveCycleEquipped, Dual, Engine, ROConstantsCircuit};
 use bellpepper_core::num::AllocatedNum;
-use bellpepper_core::{ConstraintSystem, SynthesisError};
+use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
+use ff::Field;
 
 #[derive(Clone, Debug, PartialEq)]
 /// Represents a Read / Write operation.
@@ -197,6 +200,8 @@ impl<E: CurveCycleEquipped> LookupTrace<E> {
 
         Ok::<(AllocatedNum<E::Scalar>, AllocatedNum<E::Scalar>), SynthesisError>(
           self.accumulate_rw_operation(
+            // TODO: verify if this needs to be different for each iteration
+            cs.namespace(|| "accumulate read write"),
             rw_trace,
             challenges,
             &running_rw_acc,
@@ -213,30 +218,65 @@ impl<E: CurveCycleEquipped> LookupTrace<E> {
   }
 
   // TODO: add documentation
-  pub fn accumulate_rw_operation(
+  pub fn accumulate_rw_operation<CS: ConstraintSystem<E::Scalar>>(
     &self,
+    mut cs: CS,
     rw_trace: &RWTrace<AllocatedNum<E::Scalar>>,
     challenges: &(AllocatedNum<E::Scalar>, AllocatedNum<E::Scalar>),
     prev_rw_acc: &AllocatedNum<E::Scalar>,
     prev_global_ts: &AllocatedNum<E::Scalar>,
   ) -> Result<(AllocatedNum<E::Scalar>, AllocatedNum<E::Scalar>), SynthesisError> {
-    // what is needed for this read write operation?
-    // it takes in the following:
-    // - addr
-    // - challenges (r, gamma)
-    // - read_value
-    // - write_value
-    // - prev_RW_acc
-    // - read_ts
-    // - global_ts
-    // firstly why is the trace element destructured? why not just pass AllocatedRWTrace
-    // then where is the write_ts?
-    // seems they want to compute the write_ts inside of the circuit
-    //  - what other things should be computed within the circuit
-    //  - how does one verify the read_ts??
-    //    we want them to prove correctness of the write ts, but defer correctness of the rest
-    //    to the final snark??? (is that sufficient?)
-    //    will be nice to do some soundness analysis with this
+    let (addr, read_value, read_ts, write_value, _) = rw_trace.destructure();
+
+    let (r, gamma) = challenges;
+
+    let gamma_square = gamma.mul(cs.namespace(|| "gamma^2"), gamma)?;
+
+    // accumulate read operation
+    // (addr, read_value, read_ts)
+    // tuple compression = addr + gamma * read_value + gamma^2 * read_ts
+    // rw_acc = prev_acc + 1 / (r + (addr + gamma * value + gamma^2 * read_ts))
+
+    let read_value_term = gamma.mul(cs.namespace(|| "read_value_term"), read_value)?;
+    let read_ts_term = gamma_square.mul(cs.namespace(|| "read_ts_term"), read_ts)?;
+
+    // compute rw_acc = prev_acc + 1 / (r + (addr + gamma * value + gamma^2 * read_ts))
+    let rw_acc = AllocatedNum::alloc(cs.namespace(|| "rw_acc_added"), || {
+      match (
+        prev_rw_acc.get_value(),
+        r.get_value(),
+        addr.get_value(),
+        read_value_term.get_value(),
+        read_ts_term.get_value(),
+      ) {
+        (Some(prev_rw_acc), Some(r), Some(addr), Some(read_value_term), Some(read_ts_term)) => Ok(
+          prev_rw_acc
+            + (r + (addr + read_value_term + read_ts_term))
+              .invert()
+              .expect("cannot invert 0"),
+        ),
+        _ => Err(SynthesisError::AssignmentMissing),
+      }
+    })?;
+
+    // compute r + (addr + gamma * read_value + gamma^2 * read_ts)
+    let mut r_blc = LinearCombination::<E::Scalar>::zero();
+    r_blc = r_blc
+      + r.get_variable()
+      + addr.get_variable()
+      + read_value_term.get_variable()
+      + read_ts_term.get_variable();
+
+    // ensure that (rw_acc - prev_rw_acc) * r_blc = 1
+    cs.enforce(
+      || "rw_acc_update",
+      |lc| lc + rw_acc.get_variable() - prev_rw_acc.get_variable(),
+      |_| r_blc,
+      |lc| lc + CS::one(),
+    );
+
+    // enforce correct write operation
+
     todo!()
   }
 
