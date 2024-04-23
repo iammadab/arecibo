@@ -182,29 +182,44 @@ impl<E: CurveCycleEquipped> LookupTrace<E> {
     let mut hasher_circuit = <Dual<E> as Engine>::ROCircuit::new(ro_consts, no_of_absorbs);
     hasher_circuit.absorb(prev_intermediate_gamma);
 
-    // for every element in the allocated rw_trace, we need to accumulate into prev_rw_acc
+    // for every element in the allocated rw_trace,
+    // we need to accumulate into prev_rw_acc
     // and absorb into the hasher circuit (to generate the next intermediate gamma)
-    for rw_trace in &self.allocated_trace {
-      let (addr, read_value, read_ts, write_value, write_ts) = rw_trace.destructure();
+    let (rw_acc, global_ts) = self.allocated_trace.iter().try_fold(
+      (prev_rw_acc.clone(), prev_global_ts.clone()),
+      |(running_rw_acc, running_global_ts), rw_trace| {
+        let (addr, read_value, read_ts, write_value, write_ts) = rw_trace.destructure();
+        hasher_circuit.absorb(addr);
+        hasher_circuit.absorb(read_value);
+        hasher_circuit.absorb(read_ts);
+        hasher_circuit.absorb(write_value);
+        hasher_circuit.absorb(write_ts);
 
-      // TODO: accumulate the rw_operation
-      //  the result of accumulation will be an update rw_acc and global_ts (where both are constrained)
-
-      hasher_circuit.absorb(addr);
-      hasher_circuit.absorb(read_value);
-      hasher_circuit.absorb(read_ts);
-      hasher_circuit.absorb(write_value);
-      hasher_circuit.absorb(write_ts);
-    }
+        Ok::<(AllocatedNum<E::Scalar>, AllocatedNum<E::Scalar>), SynthesisError>(
+          self.accumulate_rw_operation(
+            rw_trace,
+            challenges,
+            &running_rw_acc,
+            &running_global_ts,
+          )?,
+        )
+      },
+    )?;
 
     let hash_bits = hasher_circuit.squeeze(cs.namespace(|| "challenge"), NUM_CHALLENGE_BITS)?;
     let next_intermediate_gamma = le_bits_to_num(cs.namespace(|| "bits to hash"), &hash_bits)?;
 
-    todo!()
+    Ok((rw_acc, global_ts, next_intermediate_gamma))
   }
 
   // TODO: add documentation
-  pub fn accumulate_rw_operation(&self) {
+  pub fn accumulate_rw_operation(
+    &self,
+    rw_trace: &RWTrace<AllocatedNum<E::Scalar>>,
+    challenges: &(AllocatedNum<E::Scalar>, AllocatedNum<E::Scalar>),
+    prev_rw_acc: &AllocatedNum<E::Scalar>,
+    prev_global_ts: &AllocatedNum<E::Scalar>,
+  ) -> Result<(AllocatedNum<E::Scalar>, AllocatedNum<E::Scalar>), SynthesisError> {
     // what is needed for this read write operation?
     // it takes in the following:
     // - addr
