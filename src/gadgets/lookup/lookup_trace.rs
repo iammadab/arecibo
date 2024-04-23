@@ -142,6 +142,38 @@ impl<E: CurveCycleEquipped> LookupTrace<E> {
     Ok(())
   }
 
+  // TODO: add documentation
+  pub fn commit(&self) {
+    // here it seems we are basically doing what we did during the snapshot phase
+    // but now inside a circuit?
+    // no we are doing more.
+    // we are computing the next intermediate gamma as constraints :check
+    // then we are for each operation adding and removing for the running multiset accumulator
+    todo!()
+  }
+
+  // TODO: add documentation
+  pub fn accumulate_rw_operation(&self) {
+    // what is needed for this read write operation?
+    // it takes in the following:
+    // - addr
+    // - challenges (r, gamma)
+    // - read_value
+    // - write_value
+    // - prev_RW_acc
+    // - read_ts
+    // - global_ts
+    // firstly why is the trace element destructured? why not just pass AllocatedRWTrace
+    // then where is the write_ts?
+    // seems they want to compute the write_ts inside of the circuit
+    //  - what other things should be computed within the circuit
+    //  - how does one verify the read_ts??
+    //    we want them to prove correctness of the write ts, but defer correctness of the rest
+    //    to the final snark??? (is that sufficient?)
+    //    will be nice to do some soundness analysis with this
+    todo!()
+  }
+
   /// Return a reference to the internal trace vector
   pub fn trace(&self) -> &[RWTrace<E::Scalar>] {
     self.trace.as_ref()
