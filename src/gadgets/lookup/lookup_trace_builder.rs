@@ -60,14 +60,8 @@ where
     // loop over every element in the read write trace and absorb
     // addr, read_value, read_ts, write_value, write_ts
     for rw_trace in &self.trace {
-      let (addr, read_value, read_ts, write_value, write_ts) = match rw_trace {
-        RWTrace::Read(addr, read_value, read_ts, write_ts) => {
-          (addr, read_value, read_ts, read_value, write_ts)
-        }
-        RWTrace::Write(addr, read_value, read_ts, write_value, write_ts) => {
-          (addr, read_value, read_ts, write_value, write_ts)
-        }
-      };
+      let (addr, read_value, read_ts, write_value, write_ts) = rw_trace.destructure();
+
       hasher.absorb(*addr);
       hasher.absorb(*read_value);
       hasher.absorb(*read_ts);

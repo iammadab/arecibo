@@ -1,4 +1,5 @@
-use crate::CurveCycleEquipped;
+use crate::traits::ROCircuitTrait;
+use crate::{CurveCycleEquipped, Dual, Engine, ROConstantsCircuit};
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, SynthesisError};
 
@@ -10,6 +11,21 @@ pub enum RWTrace<F> {
   Read(F, F, F, F),
   // addr, read_value, read_ts, write_value, write_ts
   Write(F, F, F, F, F),
+}
+
+impl<F> RWTrace<F> {
+  // TODO: find a better name
+  // TODO: add documentation
+  pub fn destructure(&self) -> (&F, &F, &F, &F, &F) {
+    match self {
+      RWTrace::Read(addr, read_value, read_ts, write_ts) => {
+        (addr, read_value, read_ts, read_value, write_ts)
+      }
+      RWTrace::Write(addr, read_value, read_ts, write_value, write_ts) => {
+        (addr, read_value, read_ts, write_value, write_ts)
+      }
+    }
+  }
 }
 
 // TODO: add documentation
@@ -143,12 +159,39 @@ impl<E: CurveCycleEquipped> LookupTrace<E> {
   }
 
   // TODO: add documentation
-  pub fn commit(&self) {
-    // here it seems we are basically doing what we did during the snapshot phase
-    // but now inside a circuit?
-    // no we are doing more.
-    // we are computing the next intermediate gamma as constraints :check
-    // then we are for each operation adding and removing for the running multiset accumulator
+  pub fn commit<CS: ConstraintSystem<E::Scalar>>(
+    &self,
+    mut cs: CS,
+    ro_consts: ROConstantsCircuit<Dual<E>>,
+    prev_intermediate_gamma: &AllocatedNum<E::Scalar>,
+    challenges: &(AllocatedNum<E::Scalar>, AllocatedNum<E::Scalar>),
+    prev_rw_acc: &AllocatedNum<E::Scalar>,
+    prev_global_ts: &AllocatedNum<E::Scalar>,
+  ) -> Result<
+    (
+      AllocatedNum<E::Scalar>,
+      AllocatedNum<E::Scalar>,
+      AllocatedNum<E::Scalar>,
+    ),
+    SynthesisError,
+  > {
+    // 1 for prev_intermediate_gamma + 5 per RWTrace element
+    let no_of_absorbs = 1 + 5 * self.trace.len();
+    let mut hasher_circuit = <Dual<E> as Engine>::ROCircuit::new(ro_consts, no_of_absorbs);
+
+    // for every element in the allocated rw_trace, we need to accumulate into prev_rw_acc
+    // and absorb into the hasher circuit (to generate the next intermediate gamma)
+    for rw_trace in &self.allocated_trace {
+      // TODO: for now only dealing with next_interemediate gamma return
+      let (addr, read_value, read_ts, write_value, write_ts) = rw_trace.destructure();
+
+      hasher_circuit.absorb(addr);
+      hasher_circuit.absorb(read_value);
+      hasher_circuit.absorb(read_ts);
+      hasher_circuit.absorb(write_value);
+      hasher_circuit.absorb(write_ts);
+    }
+
     todo!()
   }
 
