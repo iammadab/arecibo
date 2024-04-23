@@ -1,3 +1,5 @@
+use crate::constants::NUM_CHALLENGE_BITS;
+use crate::gadgets::le_bits_to_num;
 use crate::traits::ROCircuitTrait;
 use crate::{CurveCycleEquipped, Dual, Engine, ROConstantsCircuit};
 use bellpepper_core::num::AllocatedNum;
@@ -14,8 +16,7 @@ pub enum RWTrace<F> {
 }
 
 impl<F> RWTrace<F> {
-  // TODO: find a better name
-  // TODO: add documentation
+  /// Returns Read / Write contents uniformly
   pub fn destructure(&self) -> (&F, &F, &F, &F, &F) {
     match self {
       RWTrace::Read(addr, read_value, read_ts, write_ts) => {
@@ -177,13 +178,17 @@ impl<E: CurveCycleEquipped> LookupTrace<E> {
   > {
     // 1 for prev_intermediate_gamma + 5 per RWTrace element
     let no_of_absorbs = 1 + 5 * self.trace.len();
+
     let mut hasher_circuit = <Dual<E> as Engine>::ROCircuit::new(ro_consts, no_of_absorbs);
+    hasher_circuit.absorb(prev_intermediate_gamma);
 
     // for every element in the allocated rw_trace, we need to accumulate into prev_rw_acc
     // and absorb into the hasher circuit (to generate the next intermediate gamma)
     for rw_trace in &self.allocated_trace {
-      // TODO: for now only dealing with next_interemediate gamma return
       let (addr, read_value, read_ts, write_value, write_ts) = rw_trace.destructure();
+
+      // TODO: accumulate the rw_operation
+      //  the result of accumulation will be an update rw_acc and global_ts (where both are constrained)
 
       hasher_circuit.absorb(addr);
       hasher_circuit.absorb(read_value);
@@ -191,6 +196,9 @@ impl<E: CurveCycleEquipped> LookupTrace<E> {
       hasher_circuit.absorb(write_value);
       hasher_circuit.absorb(write_ts);
     }
+
+    let hash_bits = hasher_circuit.squeeze(cs.namespace(|| "challenge"), NUM_CHALLENGE_BITS)?;
+    let next_intermediate_gamma = le_bits_to_num(cs.namespace(|| "bits to hash"), &hash_bits)?;
 
     todo!()
   }
