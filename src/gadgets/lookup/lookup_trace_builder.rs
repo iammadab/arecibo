@@ -1,7 +1,10 @@
 use crate::constants::NUM_CHALLENGE_BITS;
 use crate::gadgets::lookup::lookup_table::LookupTable;
 use crate::gadgets::lookup::lookup_trace::{LookupTrace, RWTrace};
-use crate::{scalar_as_base, CurveCycleEquipped, Dual, Engine, ROConstants, ROTrait};
+use crate::{
+  scalar_as_base, AbsorbInROTrait, CommitmentEngineTrait, CurveCycleEquipped, Dual, Engine,
+  ROConstants, ROTrait,
+};
 use ff::PrimeField;
 use std::collections::BTreeMap;
 use std::mem;
@@ -76,7 +79,36 @@ where
     (next_intermediate_gamma, LookupTrace::new(trace))
   }
 
-  // TODO: implement get_challenges
+  /// Compute Logup challenge
+  pub fn get_challenge(
+    ck: &<E::CE as CommitmentEngineTrait<E>>::CommitmentKey,
+    final_table: &LookupTable<E::Scalar>,
+    intermediate_gamma: E::Scalar,
+  ) -> (E::Scalar, E::Scalar) {
+    let ro_consts =
+        <<E as Engine>::RO as ROTrait<<E as Engine>::Base, <E as Engine>::Scalar>>::Constants::default();
+    let (final_values, final_ts): (Vec<_>, Vec<_>) = final_table.values();
+
+    // final_value and final_ts
+    let (comm_final_value, comm_final_ts) = rayon::join(
+      || E::CE::commit(ck, &final_values),
+      || E::CE::commit(ck, &final_ts),
+    );
+
+    // gamma
+    let mut hasher = <E as Engine>::RO::new(ro_consts.clone(), 7);
+    let intermediate_gamma = scalar_as_base::<E>(intermediate_gamma);
+    hasher.absorb(intermediate_gamma);
+    comm_final_value.absorb_in_ro(&mut hasher);
+    comm_final_ts.absorb_in_ro(&mut hasher);
+    let gamma = hasher.squeeze(NUM_CHALLENGE_BITS);
+
+    // r
+    let mut hasher = <E as Engine>::RO::new(ro_consts, 1);
+    hasher.absorb(scalar_as_base::<E>(gamma));
+    let r = hasher.squeeze(NUM_CHALLENGE_BITS);
+    (r, gamma)
+  }
 }
 
 #[cfg(test)]

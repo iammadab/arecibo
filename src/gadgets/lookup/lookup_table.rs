@@ -58,6 +58,11 @@ impl<F: PrimeField + Ord> LookupTable<F> {
     (read_value, read_ts, write_value, write_ts)
   }
 
+  // TODO: add documentation
+  pub fn values(&self) -> (Vec<F>, Vec<F>) {
+    self.table.values().copied().unzip()
+  }
+
   // TODO: list out and implement other helper methods (as demand suggests)
 }
 
