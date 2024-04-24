@@ -6,7 +6,7 @@ use crate::traits::ROCircuitTrait;
 use crate::{CurveCycleEquipped, Dual, Engine, ROConstantsCircuit};
 use bellpepper_core::num::AllocatedNum;
 use bellpepper_core::{ConstraintSystem, LinearCombination, SynthesisError};
-use ff::Field;
+use ff::{Field, PrimeField};
 
 #[derive(Clone, Debug, PartialEq)]
 /// Represents a Read / Write operation.
@@ -39,7 +39,10 @@ pub struct LookupTrace<E: CurveCycleEquipped> {
   cursor: usize,
 }
 
-impl<E: CurveCycleEquipped> LookupTrace<E> {
+impl<E: CurveCycleEquipped> LookupTrace<E>
+where
+  E::Scalar: PartialOrd,
+{
   // TODO: add documentation
   pub fn new(trace: Vec<RWTrace<E::Scalar>>) -> Self {
     Self {
