@@ -1,7 +1,8 @@
 use crate::constants::NUM_CHALLENGE_BITS;
 use crate::gadgets::le_bits_to_num;
 use crate::gadgets::lookup::lookup_table::TableType;
-use crate::gadgets::utils::conditionally_select2;
+use crate::gadgets::lookup::util::{add_allocated_num, less_than};
+use crate::gadgets::utils::{alloc_one, conditionally_select2};
 use crate::traits::ROCircuitTrait;
 use crate::{CurveCycleEquipped, Dual, Engine, ROConstantsCircuit};
 use bellpepper_core::num::AllocatedNum;
@@ -37,6 +38,8 @@ pub struct LookupTrace<E: CurveCycleEquipped> {
   trace: Vec<RWTrace<E::Scalar>>,
   allocated_trace: Vec<RWTrace<AllocatedNum<E::Scalar>>>,
   cursor: usize,
+  table_type: TableType,
+  max_cap_global_ts_log2: usize,
 }
 
 impl<E: CurveCycleEquipped> LookupTrace<E>
@@ -44,11 +47,17 @@ where
   E::Scalar: PartialOrd,
 {
   // TODO: add documentation
-  pub fn new(trace: Vec<RWTrace<E::Scalar>>) -> Self {
+  pub fn new(
+    trace: Vec<RWTrace<E::Scalar>>,
+    table_type: TableType,
+    max_cap_global_ts_log2: usize,
+  ) -> Self {
     Self {
       trace,
       allocated_trace: vec![],
       cursor: 0,
+      table_type,
+      max_cap_global_ts_log2,
     }
   }
 
@@ -278,9 +287,84 @@ where
       |lc| lc + CS::one(),
     );
 
+    // compute write_ts
+    // if table_type = read_only then write_ts = read_ts + 1
+    // if table_type = read_write then write_ts = max{read_ts, global_ts} + 1
+
+    // note the computation below doesn't add +1 to the write_ts, this will be handled later
+    let (write_ts, write_ts_term) = if self.table_type == TableType::ReadOnly {
+      (read_ts.clone(), read_ts_term)
+    } else {
+      assert!(self.table_type == TableType::ReadWrite);
+      let lt = less_than(
+        cs.namespace(|| "read_ts < previous_global_ts"),
+        read_ts,
+        prev_global_ts,
+        self.max_cap_global_ts_log2,
+      )?;
+      let write_ts = conditionally_select2(
+        cs.namespace(|| "write_ts = read_ts < previous_global_ts ? previous_global_ts : read_ts"),
+        prev_global_ts,
+        read_ts,
+        &lt,
+      )?;
+      let write_ts_term = gamma_square.mul(cs.namespace(|| "write_ts_term"), &write_ts)?;
+      (write_ts, write_ts_term)
+    };
+
     // enforce correct write operation
 
-    todo!()
+    // accumulate write operation
+    // (addr, write_value, write_ts)
+    // tuple compression = addr + gamma * write_value + gamma^2 * write_ts
+    // rw_acc = prev_acc - 1 / (r + (addr + gamma * value + gamma^2 * read_ts))
+
+    let write_value_term = gamma.mul(cs.namespace(|| "write_value_term"), write_value)?;
+
+    // compute rw_acc = prev_acc - 1 / (r + (addr + gamma * value + gamma^2 * read_ts))
+    let rw_acc = AllocatedNum::alloc(cs.namespace(|| "rw_acc_added"), || {
+      match (
+        rw_acc.get_value(),
+        r.get_value(),
+        addr.get_value(),
+        write_value_term.get_value(),
+        write_ts_term.get_value(),
+      ) {
+        (Some(prev_rw_acc), Some(r), Some(addr), Some(write_value_term), Some(write_ts_term)) => {
+          Ok(
+            // TODO: is it safe to just subtract rather than converting it to neg
+            prev_rw_acc
+              - (r + (addr + write_value_term + write_ts_term))
+                .invert()
+                .expect("cannot invert 0"),
+          )
+        }
+        _ => Err(SynthesisError::AssignmentMissing),
+      }
+    })?;
+
+    // compute r + (addr + gamma * read_value + gamma^2 * read_ts)
+    let mut w_blc = LinearCombination::<E::Scalar>::zero();
+    w_blc = w_blc
+      + r.get_variable()
+      + addr.get_variable()
+      + write_value_term.get_variable()
+      + write_ts_term.get_variable();
+
+    // ensure that (rw_acc - prev_rw_acc) * r_blc = 1
+    cs.enforce(
+      || "rw_acc_update",
+      |lc| lc + rw_acc.get_variable() - prev_rw_acc.get_variable(),
+      |_| w_blc,
+      |lc| lc + CS::one(),
+    );
+
+    // add one to global_ts
+    let alloc_num_one = alloc_one(cs.namespace(|| "one"));
+    let new_global_ts =
+      add_allocated_num(cs.namespace(|| "new_global_ts"), &write_ts, &alloc_num_one)?;
+
+    Ok((rw_acc, new_global_ts))
   }
 
   /// Return a reference to the internal trace vector

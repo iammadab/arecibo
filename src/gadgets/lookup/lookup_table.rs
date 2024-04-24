@@ -1,8 +1,9 @@
+use crate::spartan::math::Math;
 use ff::PrimeField;
 use std::collections::BTreeMap;
 
 /// Specifies read write permissions for the `LookupTable`
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum TableType {
   ReadOnly,
   ReadWrite,
@@ -13,11 +14,12 @@ pub struct LookupTable<F: PrimeField> {
   table: BTreeMap<F, (F, F)>,
   global_ts: F,
   table_type: TableType,
+  max_cap_global_ts_log2: usize,
 }
 
 impl<F: PrimeField + Ord> LookupTable<F> {
   /// Create a new `LookupTable` setting initial values and read write permissions
-  pub fn new(initial_table: Vec<(F, F)>, table_type: TableType) -> Self {
+  pub fn new(initial_table: Vec<(F, F)>, table_type: TableType, max_cap_global_ts: usize) -> Self {
     let table_map = initial_table
       .into_iter()
       .enumerate()
@@ -33,6 +35,7 @@ impl<F: PrimeField + Ord> LookupTable<F> {
       table: table_map,
       global_ts: F::ZERO,
       table_type,
+      max_cap_global_ts_log2: max_cap_global_ts.log_2(),
     }
   }
 
@@ -61,6 +64,15 @@ impl<F: PrimeField + Ord> LookupTable<F> {
   // TODO: add documentation
   pub fn values(&self) -> (Vec<F>, Vec<F>) {
     self.table.values().copied().unzip()
+  }
+
+  // TODO: add documentation
+  pub fn table_type(&self) -> TableType {
+    self.table_type.clone()
+  }
+
+  pub fn max_cap_global_ts_log2(&self) -> usize {
+    self.max_cap_global_ts_log2
   }
 
   // TODO: list out and implement other helper methods (as demand suggests)

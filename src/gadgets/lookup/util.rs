@@ -62,3 +62,24 @@ pub fn less_than<F: PrimeField + PartialOrd, CS: ConstraintSystem<F>>(
   );
   Ok(lt)
 }
+
+/// c = a + b where a, b is AllocatedNum
+pub fn add_allocated_num<F: PrimeField, CS: ConstraintSystem<F>>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+) -> Result<AllocatedNum<F>, SynthesisError> {
+  let c = AllocatedNum::alloc(cs.namespace(|| "c"), || {
+    a.get_value()
+      .zip(b.get_value())
+      .map(|(a, b)| a + b)
+      .ok_or(SynthesisError::AssignmentMissing)
+  })?;
+  cs.enforce(
+    || "c = a+b",
+    |lc| lc + a.get_variable() + b.get_variable(),
+    |lc| lc + CS::one(),
+    |lc| lc + c.get_variable(),
+  );
+  Ok(c)
+}

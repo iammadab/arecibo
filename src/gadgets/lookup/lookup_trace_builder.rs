@@ -76,7 +76,10 @@ where
     let next_intermediate_gamma = scalar_as_base::<Dual<E>>(hasher.squeeze(NUM_CHALLENGE_BITS));
     let trace = mem::take(&mut self.trace);
 
-    (next_intermediate_gamma, LookupTrace::new(trace))
+    (
+      next_intermediate_gamma,
+      LookupTrace::new(trace, self.lookup_table.table_type(), 0),
+    )
   }
 
   /// Compute Logup challenge
