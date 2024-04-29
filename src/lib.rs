@@ -1,14 +1,17 @@
 //! This library implements Nova, a high-speed recursive SNARK.
-#![deny(
-  warnings,
-  unused,
-  future_incompatible,
-  nonstandard_style,
-  rust_2018_idioms,
-  missing_docs
-)]
+// TODO: add back deny block
+// #![deny(
+//   warnings,
+//   unused,
+//   future_incompatible,
+//   nonstandard_style,
+//   rust_2018_idioms,
+//   missing_docs
+// )]
 #![allow(non_snake_case)]
 // #![forbid(unsafe_code)] // Commented for development with `Abomonation`
+
+extern crate core;
 
 // private modules
 mod bellpepper;

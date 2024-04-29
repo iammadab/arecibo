@@ -11,7 +11,9 @@ pub(crate) use r1cs::{
 };
 pub(crate) use r1cs::{AllocatedR1CSInstance, AllocatedRelaxedR1CSInstance};
 
+mod lookup;
 mod utils;
+
 #[cfg(test)]
 pub(crate) use utils::alloc_one;
 pub(crate) use utils::{
